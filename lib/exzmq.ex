@@ -91,7 +91,6 @@ defmodule Exzmq do
 
   def recv(socket) do
     x = socket |> GenServer.call(:recv)
-    IO.puts "RECV: #{inspect x}"
     x
   end
 
@@ -99,9 +98,8 @@ defmodule Exzmq do
   # private functions
 
   def handle_call(:accept, _from, state) do
-    IO.puts "handle_call::accept"
     {:ok, _} = :gen_tcp.accept(state.socket)
-    IO.puts "client has connected"
+
     {:noreply, state}
   end
 
@@ -109,7 +107,6 @@ defmodule Exzmq do
     opts = [:inet, :binary, active: :once, ip: address.ip, reuseaddr: true]
     case :gen_tcp.listen(address.port, opts) do
       {:ok, socket} ->
-        IO.puts "Listen socket: #{inspect socket}"
         acceptor_state = %{parent: self(), socket: socket}
         {:ok, acceptor} = GenServer.start_link(Exzmq.Acceptor, acceptor_state)
         :ok = :gen_tcp.controlling_process(socket, acceptor)
@@ -120,11 +117,9 @@ defmodule Exzmq do
   end
 
   def handle_call({:connect, address}, _from, state) do
-    IO.puts "CLIENT shall connect to #{inspect address}"
     opts = [:inet, :binary, active: :once]
     case :gen_tcp.connect(address.ip, address.port, opts) do
       {:ok, socket} ->
-        IO.puts "CLIENT connected as #{inspect socket}"
         case :gen_tcp.send(socket, <<0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0x7f, 0x03>>) do
           :ok ->
             :inet.setopts(socket, [{:active, :once}])
@@ -147,53 +142,43 @@ defmodule Exzmq do
   def handle_call(:recv, _from, state) do
     msg = cond do
       state.messages |> Enum.empty? ->
-        IO.puts "Make a blocking recv"
         "NO MESSAGE"
       true ->
         state.messages |> List.first
     end
     state = %{state | messages: state.messages |> List.delete_at(0)}
-    IO.puts "Message is: #{inspect msg}"
+
     {:reply, msg, state}
   end
 
   def handle_call(message, _from, state) do
-    IO.puts "handle_call: #{inspect message}, #{inspect state}"
     {:noreply, state}
   end
 
   def handle_cast({:new_client, client}, state) do
-    IO.puts "A new client has connected"
     conn = %Exzmq.ClientConnection{socket: client}
     state = %{state | clients: [conn] ++ state.clients}
-    case :gen_tcp.send(client, <<0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0x7f, 0x03>>) do
-      :ok -> IO.puts "greeting sent"
-      _ -> IO.puts "error sending greeting"
-    end
+    :gen_tcp.send(client, <<0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0x7f, 0x03>>)
     :inet.setopts(client, [{:active, :once}])
+
     {:noreply, state}
   end
 
   def handle_cast(message, _from, state) do
-    IO.puts "handle_cast: #{inspect message}, #{inspect state}"
     {:ok, state}
   end
 
   def handle_info({:tcp, socket, <<0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0x7f, 0x03>>}, %Exzmq.Socket{type: :client, state: :greeting} = state) do
-    IO.puts "CLIENT: Got initial greeting from #{inspect socket}"
-    IO.puts "CLIENT: Send rest of greeting to server"
     :ok = :gen_tcp.send(socket, <<0x01, "NULL", 0x00, 0::size(248)>>)
-    IO.puts "CLIENT: Wait for next message"
     :inet.setopts(socket, [{:active, :once}])
+
     {:noreply, %{state | state: :greeting2}}
   end
 
   def handle_info({:tcp, socket, <<0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0x7f, 0x03>>}, %Exzmq.Socket{type: :server, state: :greeting} = state) do
-    IO.puts "SERVER: Got initial greeting from #{inspect socket}"
-    IO.puts "SERVER: Send rest of greeting to client"
     :ok = :gen_tcp.send(socket, <<0x01, "NULL", 0x00, 0::size(248)>>)
-    IO.puts "SERVER: Wait for next message"
     :inet.setopts(socket, [{:active, :once}])
+
     {:noreply, %{state | state: :greeting2}}
   end
 
@@ -202,33 +187,31 @@ defmodule Exzmq do
 
   # CLIENT SEND READY
   def handle_info({:tcp, socket, <<0x01, "NULL", 0x00, 0::size(248)>>}, %Exzmq.Socket{type: :client, state: :greeting2} = state) do
-    IO.puts "CLIENT: Got second greeting"
-    IO.puts "CLIENT: Send READY"
     :ok = :gen_tcp.send(socket, @client_ready)
     :inet.setopts(socket, [{:active, :once}])
+
     {:noreply, %{state | state: :handshake}}
   end
 
   # SERVER GOT READY
   def handle_info({:tcp, socket, @client_ready}, %Exzmq.Socket{type: :server, state: :handshake} = state) do
-    IO.puts "SERVER: Got READY"
-    IO.puts "SERVER: Send READY"
     :ok = :gen_tcp.send(socket, @server_ready)
     :inet.setopts(socket, [{:active, :once}])
+
     {:noreply, %{state | state: :messages}}
   end
 
   # CLIENT GOT READY
   def handle_info({:tcp, socket, @server_ready}, %Exzmq.Socket{type: :client, state: :handshake} = state) do
-    IO.puts "CLIENT: Got READY"
     :inet.setopts(socket, [{:active, :once}])
+
     {:noreply, %{state | state: :messages}}
   end
 
   # SERVER GOT HANDSHAKE
   def handle_info({:tcp, socket, <<0x01, "NULL", 0x00, 0::size(248)>>}, %Exzmq.Socket{type: :server, state: :greeting2} = state) do
-    IO.puts "SERVER: Got second greeting"
     :inet.setopts(socket, [{:active, :once}])
+
     {:noreply, %{state | state: :handshake}}
   end
 
@@ -239,17 +222,14 @@ defmodule Exzmq do
   end
 
   def handle_info({:tcp_closed, socket}, %Exzmq.Socket{type: :server} = state) do
-    IO.puts "TCP_CLOSED: #{inspect socket}"
     clients = state.clients
     |> Enum.filter(fn(x) -> x != socket end)
     state = %{state | clients: clients}
-    IO.puts "NEW STATE AFTER CLIENT CLOSE: #{inspect state}"
+
     {:noreply, state}
   end
 
   def handle_info(info, state) do
-    IO.puts "UNHANDLED handle_info: #{inspect info}, #{inspect state}"
     {:noreply, state}
   end
-
 end
