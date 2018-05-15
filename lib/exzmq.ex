@@ -142,7 +142,7 @@ defmodule Exzmq do
   def handle_call(:recv, _from, state) do
     msg = cond do
       state.messages |> Enum.empty? ->
-        "NO MESSAGE"
+        nil
       true ->
         state.messages |> List.first
     end
