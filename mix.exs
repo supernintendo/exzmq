@@ -11,36 +11,33 @@ defmodule Exzmq.Mixfile do
     [
       app: :exzmq,
       version: @version,
-      elixir: ">= 1.1.0",
+      elixir: ">= 1.6.0",
       name: "Exzmq",
       package: package(),
-      build_embedded: Mix.env == :prod,
-      start_permanent: Mix.env == :prod,
-      deps: [
-        {:credo, "~> 0.2", only: [:dev, :test]}
-      ],
+      build_embedded: Mix.env() == :prod,
+      start_permanent: Mix.env() == :prod,
+      deps: [],
       docs: [
         main: "Exzmq",
         source_ref: "v#{@version}",
         source_url: "https://github.com/zeromq/exzmq"
-      ],
+      ]
     ]
   end
 
   def application do
-    [applications: []]
+    [applications: [:logger]]
   end
 
   defp package do
     %{
       maintainers: [
         "Constantin Rack"
-        ],
+      ],
       licenses: ["Mozilla Public License 2.0"],
       links: %{
         "GitHub" => "https://github.com/zeromq/exzmq"
       }
     }
   end
-
 end

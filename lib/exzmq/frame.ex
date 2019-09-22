@@ -3,18 +3,18 @@
 ## file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 defmodule Exzmq.Frame do
-
-  def decode(<<0x00, len::size(8), payload::binary>>) do
+  def decode(<<0x00, _len::size(8), payload::binary>>) do
     payload
   end
 
   def encode(msg) when is_binary(msg) do
-    msg_len = msg |> byte_size
-    if msg_len > 255 do
-      [<<0x02, msg_len::size(64)>>, msg] |> IO.iodata_to_binary
-    else
-      [<<0x00, msg_len::size(8)>>, msg] |> IO.iodata_to_binary
-    end
-  end
+    case byte_size(msg) do
+      msg_length when msg_length > 255 ->
+        [<<0x02, msg_length::size(64)>>, msg]
 
+      msg_length ->
+        [<<0x00, msg_length::size(8)>>, msg]
+    end
+    |> IO.iodata_to_binary()
+  end
 end

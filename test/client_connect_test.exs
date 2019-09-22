@@ -3,27 +3,28 @@
 ## file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 defmodule ClientConnectTest do
-
   use ExUnit.Case, async: false
 
   test "Client should fail to connect" do
-    {:ok, client} = Exzmq.client
-    {:error, :econnrefused} = client |> Exzmq.connect("tcp://127.0.0.1:5555")
+    {:ok, client} = Exzmq.client()
+    {:error, :econnrefused} = Exzmq.connect(client, "tcp://127.0.0.1:5555")
   end
 
   test "Client should connect" do
-    {:ok, server} = Exzmq.server
-    :ok = server |> Exzmq.bind("tcp://127.0.0.1:5555")
-    :timer.sleep(1000)
-    {:ok, client} = Exzmq.client
-    :ok = client |> Exzmq.connect("tcp://127.0.0.1:5555")
-    :timer.sleep(1000)
-    :ok = client |> Exzmq.send("Hello")
-    :timer.sleep(1000)
-    msg = server |> Exzmq.recv
-    assert msg == "Hello"
-    :ok = client |> Exzmq.close
-    :ok = server |> Exzmq.close
-  end
+    {:ok, server} = Exzmq.server()
+    :ok = Exzmq.bind(server, "tcp://127.0.0.1:5555")
+    :timer.sleep(2000)
 
+    {:ok, client} = Exzmq.client()
+    :ok = Exzmq.connect(client, "tcp://127.0.0.1:5555")
+    :timer.sleep(2000)
+
+    :ok = Exzmq.send(client, "Hello")
+    :timer.sleep(1000)
+    msg = Exzmq.recv(server)
+
+    assert msg == "Hello"
+    :ok = Exzmq.close(client)
+    :ok = Exzmq.close(server)
+  end
 end

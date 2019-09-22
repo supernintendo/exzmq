@@ -3,14 +3,13 @@
 ## file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 defmodule Exzmq.Socket do
-
   defstruct socket: nil,
             address: nil,
             acceptor: nil,
-            type: nil, # :client or :server
-            clients: [], # list of client connections, if socket is of type server
+            # :client or :server
+            type: nil,
+            # list of client connections, if socket is of type server
+            clients: [],
             state: :greeting,
             messages: []
-
 end
-
